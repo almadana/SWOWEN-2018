@@ -1,26 +1,29 @@
-# Preprocessing pipeline for SWOW-EN project
+# Preprocessing pipeline for SWOWES-UY project
 #
-# Note: A similar pipeline is implemented server side, which is used to determine
+# Note: For the english project, a similar pipeline is implemented server side, which is used to determine
 # the total number of valid responses per cue and determine the snowball sampling
-# This pipeline reimplements some of its principles in a more systematic way.
+# This pipeline reimplements some of its principles in a more systematic way, in the ES-UY project.
 #
-# The script writes a fixed number of participants per cue (here set to 100)
+# The script writes a fixed number of participants per cue (here set to 60)
 # to an output file used for further processing
 # To determine which data to retain, a number of checks are performed to see if participants
 # are fluent speakers (knowing most cues, responding with words part of the language' lexicon), etc.
 # In this script, we also prioritise native speakers if sufficient data is available for a specific cue.
 #
 # Author: Simon De Deyne, simon2d@gmail.com
-# Last changed 5 March, 2018
+
+require(stringi)
 
 results      = list()
 
 # Import the raw dataset
-data.file    = './data/raw/SWOW-EN.complete.csv'
-output.file  = './data/processed/SWOW-EN.R100.csv'
+data.file    = './data/raw/SWOWES-UY.complete.csv'
+output.file  = './data/processed/SWOWES-UY.R60.csv'
 lexicon.file = './data/dictionaries/wordlist.txt'
 cueCorrections.file = './data/dictionaries/cueCorrections.txt'
-report.file  = './output/reports/preprocessing.SWOW-EN.rds'
+responseCorrections.file = './data/dictionaries/responseCorrections.txt'
+responseExceptions.file = './data/dictionaries/responseExceptions.txt'
+report.file  = './output/reports/preprocessing.SWOWES-UY.rds'
 
 X            = read.table(data.file, header = TRUE, sep = ",", dec = ".", quote = "\"",stringsAsFactors = FALSE,
                           encoding = 'UTF-8')
@@ -28,7 +31,7 @@ Lexicon      = read.csv(lexicon.file, header = TRUE,stringsAsFactors = FALSE, en
 
 # If participants repeat the same response to a specific cue, recode as no more responses
 doubles = X %>% filter(R1 == R2, R1 != unknown.Token) %>% select(participantID,cue,R1,R2) %>% nrow()
-doubles = doubles + X %>% filter(R2 == R3, R2 != missing.Token,R2 != unknown.Token) %>%
+doubles = doubles + X %>% filter(R2 == R3, R2 %in% missing.Token,R2 != unknown.Token) %>%
           select(participantID,cue,R1,R2)  %>% nrow()
 X       = X %>% mutate(R2 = ifelse(R1 == R2 & R1 != unknown.Token, missing.Token,R2))
 X       = X %>% mutate(R3 = ifelse(R2 == R3 & R2 != missing.Token & R2 != unknown.Token, missing.Token,R3))
@@ -60,6 +63,18 @@ X           = X %>% na_if(missing.Token)
 # Convert dates
 X$created_at = as.POSIXct(strptime(X$created_at, format = "%Y-%m-%d %H:%M:%S",tz ='UTC'))
 
+#### STRIP WHITESPACE - FIX COMMON TYPING ERRORS (UNINTENDED SYMBOLS)
+X = X %>% mutate(response=stri_replace(response,"",regex="[ç}]$"))
+X = X %>% mutate(response=stri_trim(response))
+
+
+# 
+
+# Fix alternative spellings for reponses
+spelling.responses = read.csv('./data/other/wordlists/responseCorrections.csv',as.is = T, encoding = 'UTF-8',header=T)
+X$response = plyr::mapvalues(X$response,spelling.responses$response,spelling.responses$substitution,warn_missing = F)
+
+
 
 # Fix alternative spellings for cues
 spelling.words  = read.table(cueCorrections.file,sep = '\t',header=TRUE,stringsAsFactors = FALSE, encoding = 'UTF-8')
@@ -68,8 +83,9 @@ X$cue           = plyr::mapvalues(X$cue,spelling.words$original,spelling.words$c
 # Count spaces and commas in responses, to figure out of n-grams with n > 1 are used. Ignore missing responses (Unknown word, No more responses")
 X               = X %>% mutate(nWords = ifelse(isMissing >  0, NA, ifelse(str_count(response,"\\S+") + str_count(response,",|;") > 1,1,0)))
 
-# Calculate presence of response in SUBTLEX  and VARCON wordlist (about 83% is present)
+# Calculate presence of response in wordlist 
 X               = X %>%  mutate(inLexicon = ifelse(isMissing > 0, NA, as.numeric(response %in% Lexicon$Word)))
+message('Proportion of responses in lexicon: ',  sum(X$inLexicon,na.rm=T)/results$responses$N.original )
 
 # Calculate participant characteristics
 PP              = X %>% group_by(participantID,nativeLanguage,gender,age,education) %>%
@@ -77,18 +93,18 @@ PP              = X %>% group_by(participantID,nativeLanguage,gender,age,educati
                     Unknown = sum(isUnknown),
                     Missing = sum(isMissing),
                     C.Response = n_distinct(response),
-                    F.English = sum(inLexicon,na.rm = TRUE),
+                    F.Spanish = sum(inLexicon,na.rm = TRUE),
                     F.words = sum(nWords,na.rm = TRUE))
 
 # Convert to proportions, note corrected for unknown and missing responses
 PP$Prop.Unknown = PP$Unknown / PP$N
 PP$Prop.Repeat  = 1 - (PP$C.Response - as.numeric(PP$Unknown>0) - as.numeric(PP$Missing>0)) / (PP$N - PP$Unknown - PP$Missing)
 PP$Prop.X       = (PP$Missing + PP$Unknown) / PP$N
-PP$Prop.English = PP$F.English / (PP$N - PP$Unknown - PP$Missing)
+PP$Prop.Spanish = PP$F.Spanish / (PP$N - PP$Unknown - PP$Missing)
 PP$Prop.Ngram   = PP$F.words / (PP$N - PP$Unknown - PP$Missing)
 
 PP              = PP %>% mutate(Status = ifelse(Prop.X >  criteria.X, 'X',
-                  ifelse(Prop.English < criteria.English,'Non-native',
+                  ifelse(Prop.Spanish < criteria.Spanish,'Non-native',
                          ifelse(Prop.Repeat > criteria.Repeat, 'Perseveration',
                                 ifelse(Prop.Ngram > criteria.Ngram, 'Verbose','Valid')))))
 
@@ -96,7 +112,7 @@ PP              = PP %>% mutate(Status = ifelse(Prop.X >  criteria.X, 'X',
 ## Calculate the breakdown of valid and removed participants
 results$pp$N     = dim(PP)[1]
 results$pp$N.invalid.X          = sum(PP$Prop.X > criteria.X)
-results$pp$N.invalid.nonnative  = sum(PP$Prop.English < criteria.English, na.rm = TRUE)
+results$pp$N.invalid.nonnative  = sum(PP$Prop.Spanish < criteria.Spanish, na.rm = TRUE)
 results$pp$N.invalid.persever   = sum(PP$Prop.Repeat > criteria.Repeat, na.rm  = TRUE)
 results$pp$N.invalid.ngram      = sum(PP$Prop.Ngram > criteria.Ngram, na.rm = TRUE)
 
@@ -111,11 +127,11 @@ results$pp$age.SD    = round(sd(PP$age),1)
 
 
 # Language stats (I know, this is lazy...)
-results$pp$N.native    = round(PP %>% filter(nativeLanguage %in% nativeLanguages) %>% nrow() / results$pp$N * 100)
-results$pp$N.america   = round(PP %>% filter(nativeLanguage == 'United States') %>% nrow() / results$pp$N * 100)
-results$pp$N.canada    = round(PP %>% filter(nativeLanguage == 'Canada') %>% nrow() / results$pp$N * 100)
-results$pp$N.uk        = round(PP %>% filter(nativeLanguage == 'United Kingdom') %>% nrow() / results$pp$N * 100)
-results$pp$N.australia = round(PP %>% filter(nativeLanguage == 'Australia') %>% nrow() / results$pp$N * 100)
+# results$pp$N.native    = round(PP %>% filter(nativeLanguage %in% nativeLanguages) %>% nrow() / results$pp$N * 100)
+# results$pp$N.america   = round(PP %>% filter(nativeLanguage == 'United States') %>% nrow() / results$pp$N * 100)
+# results$pp$N.canada    = round(PP %>% filter(nativeLanguage == 'Canada') %>% nrow() / results$pp$N * 100)
+# results$pp$N.uk        = round(PP %>% filter(nativeLanguage == 'United Kingdom') %>% nrow() / results$pp$N * 100)
+# results$pp$N.australia = round(PP %>% filter(nativeLanguage == 'Australia') %>% nrow() / results$pp$N * 100)
 
 
 # Education
