@@ -19,15 +19,15 @@ require(Matrix)
 
 results = list()
 
-output.file         = './output/adjacencyMatrices/SWOW-EN.'
-report.file         = './output/reports/components.SWOW-EN.rds'
+output.file         = './output/adjacencyMatrices/SWOWES-UY'
+report.file         = './output/reports/components.SWOWES-UY.rds'
 
 source('./R/functions/importDataFunctions.R')
 source('./R/functions/networkFunctions.R')
 
 
 # Import the dataset for R1
-dataFile          = './data/processed/SWOW-EN.R100.csv'
+dataFile          = './data/processed/SWOWES-UY.R60.csv'
 response          = 'R1' # Options: R1, R2, R3 or R123
 X.R1              = importDataSWOW(dataFile,response)
 

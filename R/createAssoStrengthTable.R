@@ -10,13 +10,13 @@ source('settings.R')
 require(igraph)
 require(Matrix)
 
-outputR1.file       = './output/strength.SWOW-EN.R1.csv'
-outputR123.file     = './output/strength.SWOW-EN.R123.csv'
+outputR1.file       = './output/strength.SWOWES-UY.R1.csv'
+outputR123.file     = './output/strength.SWOWES-UY.R123.csv'
 
 source('./R/functions/importDataFunctions.R')
 
 # Import the dataset for R1
-dataFile          = './data/processed/SWOW-EN.R100.csv'
+dataFile          = './data/processed/SWOWES-UY.R60.csv'
 response          = 'R1' # Options: R1, R2, R3 or R123
 X.R1              = importDataSWOW(dataFile,response)
 

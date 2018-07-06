@@ -5,7 +5,7 @@ require(tidyverse)
 rm(list = ls())
 
 # Set your working direct
-current_path = getActiveDocumentContext()$path
+  current_path = getActiveDocumentContext()$path
 setwd(dirname(current_path ))
 message('Current working directory: ', getwd() )
 
@@ -31,12 +31,17 @@ responseCountTreshold = 300
 # 1. over 60% missing or unknown responses
 criteria.X = 0.6
 
-# 2. less than 60% of responses in Spanish lexicon
-criteria.Spanish = 0.6
+# 2. less than 30% of responses in Spanish lexicon
+criteria.Spanish = 0.3
 
 # 3. more than 20% of responses not unique (sex,sex,sex)
-criteria.Repeat = 0.2
+criteria.Repeat = 0.4
 
 # 4. more than 30% of responses are multi-word
 criteria.Ngram = 0.3
 
+# more than 15% of responses are ALL CAPS -> serial ALL-CAPPER
+criteria.allCaps = 0.15
+
+#more than 30% of respones are three words for R1 -> serial three-responder
+criteria.nWords = 0.3

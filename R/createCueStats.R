@@ -21,16 +21,16 @@ results = list()
 source('./R/functions/importDataFunctions.R')
 source('./R/functions/networkFunctions.R')
 
-dataFile.SWOWEN           = './data/processed/SWOW-EN.R100.csv'
-results.file.SWOWEN.R1    = './output/cueStats.SWOW-EN.R1.csv'
-results.file.SWOWEN.R123  = './output/cueStats.SWOW-EN.R123.csv'
-report.file               = './output/reports/cueStats.SWOW-EN.rds'
+dataFile.SWOWES_UY           = './data/processed/SWOWES-UY.R60.csv'
+results.file.SWOWES_UY.R1    = './output/cueStats.SWOWES-UY.R1.csv'
+results.file.SWOWES_UY.R123  = './output/cueStats.SWOWES-UY.R123.csv'
+report.file               = './output/reports/cueStats.SWOWES-UY.rds'
 
 # Load the removed vertices from the strongly connected components
-components = readRDS('./output/reports/components.SWOW-EN.rds')
+components = readRDS('./output/reports/components.SWOWES-UY.rds')
 
 ## SWOW-R1 statistics
-X.R1              = importDataSWOW(dataFile.SWOWEN,'R1')
+X.R1              = importDataSWOW(dataFile.SWOWES_UY,'R1')
 
 # Remove cues not in the component
 X.R1  = X.R1 %>% filter(!cue %in% components$R1$removeVertices)
@@ -67,7 +67,7 @@ cueStats.R1       = as.data.frame(left_join(coverage.R1,H.R1,by = 'cue') %>% lef
 
 
 ## SWOW-R123 statistics
-X.R123    = importDataSWOW(dataFile.SWOWEN,'R123')
+X.R123    = importDataSWOW(dataFile.SWOWES_UY,'R123')
 
 # Remove cues not in the component
 X.R123      = X.R123 %>% filter(!cue %in% components$R123$removeVertices)
@@ -129,8 +129,8 @@ results$R3missing$min   = min(cueStats.R123$xR3)
 results$R3missing$max   = max(cueStats.R123$xR3)
 
 # Write the results to file
-write.csv(cueStats.R1,file = results.file.SWOWEN.R1)
-write.csv(cueStats.R123,file = results.file.SWOWEN.R123)
+write.csv(cueStats.R1,file = results.file.SWOWES_UY.R1)
+write.csv(cueStats.R123,file = results.file.SWOWES_UY.R123)
 
 # Write a summary of the output to an rds file
 saveRDS(results,report.file,ascii=TRUE)

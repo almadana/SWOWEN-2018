@@ -20,7 +20,8 @@ X.varcon        = read.table(wordDict.file, header = TRUE, sep=",", dec=".", quo
                              encoding = 'UTF-8')
 X.proper        = read.table(proper.file, header = T, col.names = c('Word'), sep=",", dec=".", quote = "\"",
                              stringsAsFactors = FALSE, encoding = 'UTF-8')
-X.spelling      = read.csv(spelling.file, header = T, col.names = c('Original','Correction'),as.is=T, encoding = 'UTF-8')
+X.spelling      = read.csv(spelling.file, header = T,col.names = c("response","Correction"), stringsAsFactors =F, encoding = 'UTF-8')
+
 X.spelling      = X.spelling %>% select(Correction) %>% rename(Word = Correction)
 X               = bind_rows(X.varcon,X.proper,X.spelling) %>% distinct() %>% arrange(Word)
 

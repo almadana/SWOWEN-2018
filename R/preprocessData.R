@@ -11,8 +11,12 @@
 # In this script, we also prioritise native speakers if sufficient data is available for a specific cue.
 #
 # Author: Simon De Deyne, simon2d@gmail.com
+# Adaptation for ES-UY data: Álvaro Cabana, almadana@gmail.com
 
 require(stringi)
+require(stringr)
+require(hunspell)
+require(tidyverse)
 
 results      = list()
 
@@ -20,9 +24,10 @@ results      = list()
 data.file    = './data/raw/SWOWES-UY.complete.csv'
 output.file  = './data/processed/SWOWES-UY.R60.csv'
 lexicon.file = './data/dictionaries/wordlist.txt'
+dictionary.file=('./data/dictionaries/Spanish2.dic')
 cueCorrections.file = './data/dictionaries/cueCorrections.txt'
-responseCorrections.file = './data/dictionaries/responseCorrections.txt'
-responseExceptions.file = './data/dictionaries/responseExceptions.txt'
+responseCorrections.file = './data/dictionaries/responseCorrections.csv'
+responseExceptions.file = './data/dictionaries/customCorrections.csv'
 report.file  = './output/reports/preprocessing.SWOWES-UY.rds'
 
 X            = read.table(data.file, header = TRUE, sep = ",", dec = ".", quote = "\"",stringsAsFactors = FALSE,
@@ -37,12 +42,17 @@ X       = X %>% mutate(R2 = ifelse(R1 == R2 & R1 != unknown.Token, missing.Token
 X       = X %>% mutate(R3 = ifelse(R2 == R3 & R2 != missing.Token & R2 != unknown.Token, missing.Token,R3))
 
 # Swap inconsistent missing responses coded in R2 but not present in R3
-inconsistent        = X$R2 ==missing.Token & X$R3 != missing.Token
+inconsistent        = (! (X$R2  %in% missing.Token)) & (! (X$R3 %in% missing.Token))
 X$R2[inconsistent]  = X$R3[inconsistent]
-X$R3[inconsistent]  = missing.Token
+X$R3[inconsistent]  = missing.Token[1]
 
 results$responses$doubles = doubles
 message('Removed ',doubles, ' repeated responses for a single cue')
+
+# Before convertin to long format
+# Check for consistent patterns of multiWord responses at R1... and replace R2 and R2 accordingly
+source('./R/checkMultiWordResponses.R')
+
 
 
 # Convert data to long format
@@ -55,10 +65,12 @@ message('Original number of responses: ', results$responses$N.original)
 
 
 # Mark both unknown and missing responses. replace them by NA's for the remaining data
-X           = X %>% mutate(isMissing = as.numeric(response == missing.Token))
-X           = X %>% mutate(isUnknown = as.numeric(response  == unknown.Token))
-X           = X %>% na_if(unknown.Token)
-X           = X %>% na_if(missing.Token)
+X           = X %>% mutate(isMissing = as.numeric(response %in% missing.Token))
+X           = X %>% mutate(isUnknown = as.numeric(response %in% unknown.Token))
+#X           = X %>% na_if(unknown.Token)
+
+X           = X %>% mutate(response = ifelse(isMissing | isUnknown ,NA,response) )
+
 
 # Convert dates
 X$created_at = as.POSIXct(strptime(X$created_at, format = "%Y-%m-%d %H:%M:%S",tz ='UTC'))
@@ -68,13 +80,33 @@ X = X %>% mutate(response=stri_replace(response,"",regex="[ç}]$"))
 X = X %>% mutate(response=stri_trim(response))
 
 
-# 
+# check capitalization -> convert to lowercase serial CAPLOCKERS
+source("./R/checkCapitalization.R")
 
-# Fix alternative spellings for reponses
-spelling.responses = read.csv('./data/other/wordlists/responseCorrections.csv',as.is = T, encoding = 'UTF-8',header=T)
-X$response = plyr::mapvalues(X$response,spelling.responses$response,spelling.responses$substitution,warn_missing = F)
+View(X)
 
+# Lookup for exceptions in the exception list. DO NOT correct these
+X$spellingOk=0
+responseExceptions = read.csv(responseExceptions.file,stringsAsFactors = F)
 
+# generate cue_response pairs to check for excpetions - KIND OF A HACK/WORKAROUND so mapvalues can be used (requires 1 column, not two)
+X$cue_response = paste(X$cue,X$response,sep="__#__") 
+responseExceptions$cue_response = paste(responseExceptions$cue,responseExceptions$response,sep="__#__") 
+
+#mark the rows to be corrected as spellingOk -> no further corrections
+exceptionCorrections = X$cue_response %in% responseExceptions$cue_response
+#correct the responses in the responseExceptions list
+X$cue_response=plyr::mapvalues(X$cue_response,responseExceptions$cue_response,responseExceptions$correction,warn_missing = F)
+X$spellingOk[exceptionCorrections] = 1
+X$response[exceptionCorrections] = X$cue_response[exceptionCorrections]
+
+# Fix alternative spellings for responses
+responseCorrections = read.csv(responseCorrections.file,stringsAsFactors = F,encoding = 'UTF-8')
+# correct the response using the response correction list, ONLY if spelling is not OK
+X = X %>% 
+  mutate(response = ifelse(spellingOk,response,  plyr::mapvalues(response,responseCorrections$response,responseCorrections$substitution,warn_missing=F)    ) ) 
+
+#plyr::mapvalues(X$response,)
 
 # Fix alternative spellings for cues
 spelling.words  = read.table(cueCorrections.file,sep = '\t',header=TRUE,stringsAsFactors = FALSE, encoding = 'UTF-8')
@@ -83,8 +115,10 @@ X$cue           = plyr::mapvalues(X$cue,spelling.words$original,spelling.words$c
 # Count spaces and commas in responses, to figure out of n-grams with n > 1 are used. Ignore missing responses (Unknown word, No more responses")
 X               = X %>% mutate(nWords = ifelse(isMissing >  0, NA, ifelse(str_count(response,"\\S+") + str_count(response,",|;") > 1,1,0)))
 
-# Calculate presence of response in wordlist 
-X               = X %>%  mutate(inLexicon = ifelse(isMissing > 0, NA, as.numeric(response %in% Lexicon$Word)))
+# Calculate presence of response in wordlist # OR # Hunspell dictionary
+spanishDictionary=dictionary(dictionary.file)
+X               = X %>%  mutate(inLexicon = ifelse(isMissing > 0, NA, ifelse( spellingOk>0, 1, as.numeric( (response %in% Lexicon$Word) | hunspell_check(response,dict=spanishDictionary) )  )))
+#X               = X %>%  mutate(inLexicon = ifelse(isMissing > 0, NA, as.numeric( (response %in% Lexicon$Word ) )  ))
 message('Proportion of responses in lexicon: ',  sum(X$inLexicon,na.rm=T)/results$responses$N.original )
 
 # Calculate participant characteristics
@@ -193,3 +227,4 @@ write.csv(X_set,output.file)
 
 # Write a summary of the output to an rds file
 saveRDS(results,report.file,ascii=TRUE)
+

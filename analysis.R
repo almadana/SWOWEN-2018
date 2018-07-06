@@ -32,7 +32,7 @@ source('./R/createCueStats.R')
 # Generate coverage plot
 source('./R/plotCoverage.R')
 
-# Generate vocabulary growth plot by fitting a Zipf Mandbrot model
+p# Generate vocabulary growth plot by fitting a Zipf Mandbrot model
 # (Might get stuck depending on default options, see script)
 source('./R/plotVocabularyGrowth.R')
 

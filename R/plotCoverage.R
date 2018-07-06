@@ -4,8 +4,8 @@ require(svglite)
 
 rm(list = ls())
 
-cueStats.R1 = read.csv('./output/cueStats.SWOW-EN.R1.csv')
-cueStats.R123 = read.csv('./output/cueStats.SWOW-EN.R123.csv')
+cueStats.R1 = read.csv('./output/cueStats.SWOWES-UY.R1.csv')
+cueStats.R123 = read.csv('./output/cueStats.SWOWES-UY.R123.csv')
 
 mR1   = median(cueStats.R1$coverage)
 mR123 = median(cueStats.R123$coverage)

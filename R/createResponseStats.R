@@ -11,9 +11,9 @@ results = list()
 
 source('./R/functions/importDataFunctions.R')
 
-data.file           = './data/processed/SWOW-EN.R100.csv'
-output.file         = './output/responseStats.SWOW-EN.csv'
-report.file         = './output/reports/responseStats.SWOW-EN.rds'
+data.file           = './data/processed/SWOWES-UY.R60.csv'
+output.file         = './output/responseStats.SWOWES-UY.csv'
+report.file         = './output/reports/responseStats.SWOWES-UY.rds'
 
 # Response frequencies for SWOW-EN R123
 response            = 'R123'
